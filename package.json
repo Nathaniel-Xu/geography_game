@@ -1,0 +1,14 @@
+{
+  "name": "atlas-drill",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Map-based drill for learning where all 195 countries are.",
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "build:data": "node scripts/build-data.mjs"
+  },
+  "dependencies": {
+    "cuelume": "0.2.2"
+  }
+}

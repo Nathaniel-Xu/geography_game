@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Atlas Drill — learn where every country is</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app" class="app">
+  <header class="bar">
+    <h1 class="brand">Atlas&nbsp;Drill</h1>
+
+    <div class="prompt" id="prompt" hidden>
+      <div class="prompt-line">
+        <span class="prompt-kicker" id="promptKicker">Find</span>
+        <span class="prompt-name" id="promptName"></span>
+      </div>
+      <div class="prompt-sub" id="promptSub"></div>
+    </div>
+
+    <div class="scoreboard" id="scoreboard" hidden>
+      <div class="stat"><b id="sbScore">0</b><span>score</span></div>
+      <div class="stat"><b id="sbProgress">0/0</b><span>question</span></div>
+      <div class="stat"><b id="sbStreak">0</b><span>streak</span></div>
+    </div>
+
+    <div class="bar-actions">
+      <button id="btnSkip" class="btn ghost" hidden data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Skip &rarr;</button>
+      <button id="btnQuit" class="btn ghost" hidden data-cuelume-press data-cuelume-release data-cuelume-hover="tick">End quiz</button>
+      <button id="btnSets" class="btn ghost" hidden data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Sets</button>
+      <button id="btnLabels" class="btn ghost" hidden aria-pressed="false" data-cuelume-toggle data-cuelume-hover="tick">Labels</button>
+      <button id="btnMenu" class="btn ghost" hidden data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Menu</button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div id="map" class="map-host" role="application" aria-label="World map"></div>
+
+    <div class="zoom">
+      <button id="zoomIn" class="btn round" title="Zoom in" aria-label="Zoom in" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">+</button>
+      <button id="zoomOut" class="btn round" title="Zoom out" aria-label="Zoom out" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">&minus;</button>
+      <button id="zoomReset" class="btn round" title="Whole world" aria-label="Whole world" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">&#9633;</button>
+    </div>
+
+    <div id="hover" class="hover-chip" hidden></div>
+    <div id="toast" class="toast" hidden></div>
+    <div id="choices" class="choices" hidden></div>
+
+    <!-- Typed answers ("Name the country", from memory) --------------------- -->
+    <form id="answer" class="answer" hidden autocomplete="off">
+      <div class="answer-row">
+        <input id="answerInput" type="text" placeholder="Type the country&hellip;"
+               autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+               enterkeyhint="go" aria-label="Country name">
+        <button id="answerGo" class="btn primary" type="submit" data-cuelume-press data-cuelume-release>Answer</button>
+      </div>
+      <div id="answerNote" class="answer-note"></div>
+    </form>
+
+    <!-- Teaching card (course "learn" phase) ------------------------------- -->
+    <div id="learnCard" class="learn-card" hidden>
+      <div class="learn-head">
+        <span class="learn-count" id="learnCount"></span>
+        <b id="learnName"></b>
+      </div>
+      <div class="learn-facts" id="learnFacts"></div>
+      <div class="learn-actions">
+        <button id="learnPrev" class="btn" type="button" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">&larr; Back</button>
+        <button id="learnNext" class="btn primary" type="button" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Next &rarr;</button>
+        <button id="learnQuiz" class="btn ghost" type="button" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Skip to quiz</button>
+      </div>
+    </div>
+
+    <!-- Setup / menu ------------------------------------------------------- -->
+    <section id="panelMenu" class="panel">
+      <h2>Learn where every country is</h2>
+      <p class="lede">All <b>195</b> UN member and observer states, on a real map.</p>
+
+      <div class="cta">
+        <div class="cta-text">
+          <h3 id="courseTitle">The course</h3>
+          <p class="hint" id="courseStatus"></p>
+        </div>
+        <button id="btnCourse" class="btn primary big" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Continue</button>
+        <button id="btnBrowseSets" class="btn big" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">All sets</button>
+      </div>
+
+      <details class="free-play" id="freePlay" open>
+        <summary data-cuelume-toggle>Free play</summary>
+
+        <div class="field">
+          <label>Mode</label>
+          <div class="segmented wrap" id="modePick" role="radiogroup" aria-label="Mode"></div>
+          <p class="hint" id="modeBlurb"></p>
+        </div>
+
+        <div class="field">
+          <label>Region</label>
+          <div class="segmented wrap" id="regionPick" role="radiogroup" aria-label="Region"></div>
+        </div>
+
+        <div class="field">
+          <label>Questions</label>
+          <div class="segmented" id="lengthPick" role="radiogroup" aria-label="Questions"></div>
+        </div>
+
+        <div class="row">
+          <button id="btnStart" class="btn primary" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Start drill</button>
+          <button id="btnExplore" class="btn" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Explore map</button>
+        </div>
+      </details>
+
+      <div class="progress" id="progressPanel"></div>
+    </section>
+
+    <!-- Course: the sets -------------------------------------------------- -->
+    <section id="panelCourse" class="panel" hidden>
+      <div class="panel-head">
+        <h2>The world, set by set</h2>
+        <button id="btnCourseBack" class="btn ghost tiny" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Menu</button>
+      </div>
+      <p class="lede">
+        Sets are ordered by geopolitical weight — economy, population, land, and a seat at the
+        table. Learn a set on the map, prove it with multiple choice, then type the names from
+        memory.
+      </p>
+      <div class="set-list" id="setList"></div>
+      <div class="row">
+        <button id="btnCourseReset" class="btn ghost tiny" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Reset course progress</button>
+      </div>
+    </section>
+
+    <!-- Results ----------------------------------------------------------- -->
+    <section id="panelResults" class="panel" hidden>
+      <h2 id="resTitle">Drill complete</h2>
+      <div class="result-stats" id="resStats"></div>
+      <div class="row" id="resCourse" hidden></div>
+      <div class="missed" id="resMissed"></div>
+      <div class="row">
+        <button id="btnReview" class="btn primary" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Drill my misses</button>
+        <button id="btnAgain" class="btn" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Play again</button>
+        <button id="btnBack" class="btn ghost" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Menu</button>
+      </div>
+    </section>
+
+    <div id="loading" class="loading">Loading the world&hellip;</div>
+  </main>
+
+  <footer class="foot">
+    <span id="footInfo"></span>
+    <span class="spacer"></span>
+    <button id="btnSound" class="btn tiny ghost" aria-pressed="true" data-cuelume-hover title="Mute or unmute UI sounds">Sound: on</button>
+    <button id="btnReset" class="btn tiny ghost" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Reset my progress</button>
+  </footer>
+</div>
+<script type="module" src="src/app.js"></script>
+</body>
+</html>
