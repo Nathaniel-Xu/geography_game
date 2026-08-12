@@ -6,7 +6,12 @@
   "type": "module",
   "scripts": {
     "start": "python3 -m http.server 8080",
-    "build:data": "node scripts/build-data.mjs"
+    "build:data": "node scripts/build-data.mjs",
+    "cloud:login": "spacetime login",
+    "cloud:publish": "spacetime publish --server maincloud --module-path server geography-game",
+    "cloud:publish:local": "spacetime publish --server local --module-path server geography-game",
+    "cloud:bindings": "spacetime generate --lang typescript --out-dir server/module_bindings --module-path server && bun build server/module_bindings/index.ts --target browser --format esm --outfile vendor/spacetimedb/bindings.js",
+    "cloud:logs": "spacetime logs --server maincloud geography-game"
   },
   "dependencies": {
     "cuelume": "0.2.2"

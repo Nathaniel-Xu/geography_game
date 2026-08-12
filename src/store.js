@@ -4,6 +4,9 @@ const KEY = 'geoquiz.stats.v1';
  * Per-country mastery, persisted in localStorage:
  *   { seen, correct, streak, last }  (last = epoch ms)
  * Used both for the progress panel and for weighted question sampling.
+ *
+ * `sink` is an optional backend mirror (see src/cloud.js). Local state is always
+ * written first, so play never waits on — or breaks with — the network.
  */
 export class Stats {
   constructor() {
@@ -14,6 +17,7 @@ export class Stats {
       raw = null;
     }
     this.data = raw && raw.c ? raw.c : {};
+    this.sink = null;
   }
 
   get(id) {
@@ -30,6 +34,7 @@ export class Stats {
     };
     this.data[id] = next;
     this.#save();
+    this.sink?.answer(id, ok);
     return next;
   }
 
@@ -56,6 +61,54 @@ export class Stats {
   reset() {
     this.data = {};
     this.#save();
+    this.sink?.resetStats();
+  }
+
+  /** Forget this browser's copy without touching the account's copy. */
+  clearLocal() {
+    this.data = {};
+    this.#save();
+  }
+
+  /**
+   * Fold the account's rows into the local copy, keeping the better of each
+   * pair, and report the countries where this browser is still ahead.
+   *
+   * Same max-based rule as the module's `importProgress`, so the two can run in
+   * either order and converge — which is what makes offline play safe: every
+   * missed write is reconciled by the next merge.
+   *
+   * @param {{country:string, seen:number, correct:number, streak:number, lastMs:number}[]} rows
+   * @returns {{country:string, seen:number, correct:number, streak:number, last:number}[]}
+   */
+  mergeCloud(rows) {
+    const cloud = new Map(rows.map((r) => [r.country, r]));
+    for (const [country, r] of cloud) {
+      const local = this.data[country];
+      if (!local) {
+        this.data[country] = { seen: r.seen, correct: r.correct, streak: r.streak, last: r.lastMs };
+        continue;
+      }
+      // Whichever side has answered more times owns the accuracy.
+      const cloudAhead = r.seen > local.seen;
+      this.data[country] = {
+        seen: Math.max(local.seen, r.seen),
+        correct: cloudAhead ? Math.max(local.correct, r.correct) : local.correct,
+        streak: Math.max(local.streak, r.streak),
+        last: Math.max(local.last, r.lastMs),
+      };
+    }
+
+    const ahead = [];
+    for (const [country, s] of Object.entries(this.data)) {
+      if (!s.seen) continue;
+      const r = cloud.get(country);
+      if (!r || s.seen !== r.seen || s.correct !== r.correct || s.streak !== r.streak || s.last !== r.lastMs) {
+        ahead.push({ country, ...s });
+      }
+    }
+    this.#save();
+    return ahead;
   }
 
   summary(ids) {

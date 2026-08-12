@@ -77,6 +77,17 @@
       <h2>Learn where every country is</h2>
       <p class="lede">All <b>195</b> UN member and observer states, on a real map.</p>
 
+      <!-- Account (only shown when a backend is configured) -->
+      <div class="account" id="account" hidden>
+        <img id="accountPic" class="account-pic" alt="" hidden>
+        <div class="account-text">
+          <b id="accountName">Progress stays in this browser</b>
+          <span class="hint" id="accountStatus">Sign in to save it to your account.</span>
+        </div>
+        <button id="btnSignIn" class="btn tiny" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Sign in</button>
+        <button id="btnSignOut" class="btn tiny ghost" hidden data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Sign out</button>
+      </div>
+
       <div class="cta">
         <div class="cta-text">
           <h3 id="courseTitle">The course</h3>

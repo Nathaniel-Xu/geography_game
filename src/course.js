@@ -13,6 +13,8 @@ export const PASS = 0.8;
  *
  * Progress is per set: { learned, choice, typed, done }, where choice/typed are
  * best accuracies (0..1) and `done` latches once typed >= PASS.
+ *
+ * `sink` optionally mirrors every change to the backend (see src/cloud.js).
  */
 export class Course {
   /**
@@ -29,6 +31,7 @@ export class Course {
       raw = null;
     }
     this.data = raw && raw.s ? raw.s : {};
+    this.sink = null;
   }
 
   /** False when the data file predates the course (no ranked sets in it). */
@@ -59,6 +62,7 @@ export class Course {
 
   markLearned(n) {
     this.#update(n, (p) => ({ ...p, learned: true }));
+    this.sink?.learned(n);
   }
 
   /** Record a finished quiz over the set; only improvements are kept. */
@@ -70,6 +74,7 @@ export class Course {
       [key]: Math.max(p[key], accuracy),
       done: p.done || (key === 'typed' && accuracy >= PASS),
     }));
+    this.sink?.quiz(n, phase, accuracy);
   }
 
   /** Where "Continue" goes: the first unfinished set, or null with no sets. */
@@ -99,6 +104,43 @@ export class Course {
   reset() {
     this.data = {};
     this.#save();
+    this.sink?.resetCourse();
+  }
+
+  /** Forget this browser's copy without touching the account's copy. */
+  clearLocal() {
+    this.data = {};
+    this.#save();
+  }
+
+  /**
+   * Fold the account's rows in, keeping the better of each pair, and report the
+   * sets where this browser is ahead. Mirrors the module's `importProgress`.
+   *
+   * @param {{setN:number, learned:boolean, choice:number, typed:number, done:boolean}[]} rows
+   */
+  mergeCloud(rows) {
+    const cloud = new Map(rows.map((r) => [r.setN, r]));
+    for (const [n, r] of cloud) {
+      const p = this.progress(n);
+      this.data[n] = {
+        learned: p.learned || r.learned,
+        choice: Math.max(p.choice, r.choice),
+        typed: Math.max(p.typed, r.typed),
+        done: p.done || r.done,
+      };
+    }
+
+    const ahead = [];
+    for (const [n, p] of Object.entries(this.data)) {
+      const setN = Number(n);
+      const r = cloud.get(setN);
+      if (!r || p.learned !== r.learned || p.choice !== r.choice || p.typed !== r.typed || p.done !== r.done) {
+        ahead.push({ setN, ...p });
+      }
+    }
+    this.#save();
+    return ahead;
   }
 
   #update(n, fn) {

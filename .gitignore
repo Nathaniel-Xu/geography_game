@@ -1,2 +1,9 @@
 .cache/
 node_modules/
+
+# Generated from the module by `npm run cloud:bindings`; the bundled result in
+# vendor/spacetimedb/ is what the app actually loads and is committed.
+server/module_bindings/
+
+# `spacetime build`/`publish` output.
+server/dist/

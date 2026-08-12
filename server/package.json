@@ -1,0 +1,18 @@
+{
+  "name": "geography-game-module",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SpacetimeDB module: per-user progress for Atlas Drill.",
+  "scripts": {
+    "build": "spacetime build",
+    "publish": "spacetime publish --server maincloud geography-game",
+    "publish:local": "spacetime publish --server local geography-game",
+    "logs": "spacetime logs --server maincloud geography-game"
+  },
+  "dependencies": {
+    "spacetimedb": "2.8.*"
+  },
+  "devDependencies": {
+    "typescript": "~5.6.2"
+  }
+}

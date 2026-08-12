@@ -3,6 +3,9 @@ import { Quiz, MODES, MAX_ATTEMPTS } from './quiz.js';
 import { Stats } from './store.js';
 import { Course, PASS } from './course.js';
 import { play, bind, setEnabled } from '../vendor/cuelume/index.js';
+import { CLOUD_ENABLED } from './config.js';
+import { account, completeSignIn, idToken, signIn, signOut } from './auth.js';
+import { Cloud } from './cloud.js';
 
 const $ = (id) => document.getElementById(id);
 const REGIONS = ['World', 'Africa', 'Asia', 'Europe', 'North America', 'South America', 'Oceania'];
@@ -48,6 +51,7 @@ let byId = new Map();
 let map = null;
 let course = null;
 const stats = new Stats();
+let cloud = null;
 
 /* --------------------------------------------------------------- utilities */
 
@@ -126,6 +130,74 @@ function renderMenu() {
     </div>`;
 
   renderCourseCta();
+  renderAccount();
+}
+
+/* ------------------------------------------------------------------ account */
+
+const SYNC_TEXT = {
+  connecting: 'Connecting\u2026',
+  synced: 'Progress saved to your account.',
+  offline: 'Offline \u2014 playing locally, will sync when reconnected.',
+  off: 'Signed in.',
+};
+
+/**
+ * The account row. Absent entirely until a backend is configured, so an
+ * unconfigured copy of the game shows no dead controls.
+ */
+function renderAccount() {
+  const host = $('account');
+  if (!CLOUD_ENABLED) {
+    host.hidden = true;
+    return;
+  }
+  host.hidden = false;
+
+  const who = account();
+  const pic = $('accountPic');
+  pic.hidden = !who?.picture;
+  if (who?.picture && pic.src !== who.picture) pic.src = who.picture;
+
+  $('accountName').textContent = who ? who.name : 'Progress stays in this browser';
+  $('btnSignIn').hidden = Boolean(who);
+  $('btnSignOut').hidden = !who;
+
+  const syncState = cloud?.state ?? 'off';
+  $('accountStatus').textContent = who
+    ? cloud?.detail || SYNC_TEXT[syncState] || ''
+    : 'Sign in to save it to your account.';
+  host.classList.toggle('bad', syncState === 'error');
+}
+
+/** Sign in, then open the session. Errors surface as a toast, never a dead button. */
+async function startSignIn() {
+  try {
+    await signIn();
+  } catch (err) {
+    toast(`Sign-in failed: ${err.message}`, 'bad', 4000);
+  }
+}
+
+async function endSignIn() {
+  cloud?.disconnect();
+  const redirecting = await signOut();
+  if (!redirecting) {
+    renderAccount();
+    toast('Signed out.', '', 1400);
+  }
+}
+
+/** Open a synced session with whatever token is currently valid. */
+async function openSession() {
+  if (!CLOUD_ENABLED || !cloud) return;
+  const token = await idToken();
+  const who = account();
+  if (!token || !who) {
+    renderAccount();
+    return;
+  }
+  cloud.connect(token, who.sub);
 }
 
 function renderCourseCta() {
@@ -801,6 +873,10 @@ function bindChrome() {
     if (!state.muted) play('toggle');
   });
 
+  // Account.
+  $('btnSignIn').addEventListener('click', startSignIn);
+  $('btnSignOut').addEventListener('click', endSignIn);
+
   // Course chrome.
   $('btnCourse').addEventListener('click', () => openSet(course.nextSet()));
   $('btnBrowseSets').addEventListener('click', showSets);
@@ -876,6 +952,10 @@ function setsFrom(data) {
 }
 
 async function boot() {
+  // Consume an OAuth redirect before anything else reads the URL, so the code
+  // and state never linger in the address bar or in a shared link.
+  const back = CLOUD_ENABLED ? await completeSignIn() : { handled: false };
+
   // `cache: 'no-cache'` forces revalidation: a plain static server sends no
   // ETag or Cache-Control, so browsers otherwise keep serving a stale data
   // file — which silently strips the course out of the app.
@@ -898,7 +978,24 @@ async function boot() {
   btnSound.setAttribute('aria-pressed', String(!state.muted));
   bind(); // delegate every data-cuelume-* interaction, including future DOM
   bindChrome();
+
+  if (CLOUD_ENABLED) {
+    cloud = new Cloud({
+      stats,
+      course,
+      onStatus: renderAccount,
+      // A merge can change progress under any open screen.
+      onData: () => {
+        renderMenu();
+        if (!$('panelCourse').hidden) renderSetList();
+      },
+    });
+    if (back.error) toast(`Sign-in failed: ${back.error}`, 'bad', 5000);
+  }
   showMenu();
+  // Connecting is deliberately not awaited: the map is playable immediately and
+  // the account row fills itself in when the session lands.
+  if (cloud) openSession();
 }
 
 // A handler that throws must never look like a dead button.
