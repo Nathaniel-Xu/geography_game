@@ -18,23 +18,26 @@ import type { Identity } from 'spacetimedb';
 /**
  * Who may connect, as *seed* data.
  *
- * The live policy lives in the `auth_policy` table so it can be changed with a
- * reducer call instead of a republish; these constants only seed it on first
- * publish. An empty `audience` means "any audience from this issuer" — fill in
- * your SpacetimeAuth client id (the same one `src/config.js` uses) to pin
- * tokens to this application, so a token minted for a different project cannot
- * be replayed here:
+ * The live policy lives in the `auth_policy` table, so it can be changed with a
+ * reducer call instead of a republish; these constants only seed it the first
+ * time the module is published. Pinning `audience` to this application's
+ * SpacetimeAuth client id (the same one `src/config.js` uses) means a token the
+ * same issuer minted for a *different* project cannot be replayed here. An
+ * empty audience would trust every token from the issuer.
  *
- *   { issuer: 'https://auth.spacetimedb.com/oidc', audience: 'client_XXXX' }
- *
- * To trust an additional provider later (a local one during development, say),
- * as the owner — each argument is a separate JSON value:
+ * Owner-only, and each argument is a separate JSON value. To trust a second
+ * provider (a local one during development, say):
  *
  *   spacetime call geography-game allow_auth \
  *     '"http://127.0.0.1:9876/oidc"' '"my-dev-client"'
+ *
+ * To stop trusting that exact pair again:
+ *
+ *   spacetime call geography-game deny_auth \
+ *     '"http://127.0.0.1:9876/oidc"' '"my-dev-client"'
  */
 const SEED_POLICY: { issuer: string; audience: string }[] = [
-  { issuer: 'https://auth.spacetimedb.com/oidc', audience: '' },
+  { issuer: 'https://auth.spacetimedb.com/oidc', audience: 'client_0345vYgbmktp44vCqOnjLz' },
 ];
 
 /** A set is mastered once you type this share of its names. Matches Course.PASS. */
@@ -226,13 +229,24 @@ export const allowAuth = spacetimedb.reducer(
   }
 );
 
-/** Stop trusting an issuer entirely. Owner only. */
-export const denyAuth = spacetimedb.reducer({ issuer: t.string() }, (ctx, { issuer }) => {
-  if (!isOwner(ctx)) throw new SenderError('Only the module owner can change the auth policy.');
-  for (const row of [...ctx.db.auth_policy.iter()].filter((p) => p.issuer === issuer)) {
-    ctx.db.auth_policy.id.delete(row.id);
+/**
+ * Stop trusting one exact issuer/audience pair. Owner only.
+ *
+ * Pair-precise rather than issuer-wide so a wildcard entry can be replaced by a
+ * pinned one without ever leaving the policy empty — an empty policy refuses
+ * every player.
+ */
+export const denyAuth = spacetimedb.reducer(
+  { issuer: t.string(), audience: t.string() },
+  (ctx, { issuer, audience }) => {
+    if (!isOwner(ctx)) throw new SenderError('Only the module owner can change the auth policy.');
+    const doomed = [...ctx.db.auth_policy.iter()].filter(
+      (p) => p.issuer === issuer && p.audience === audience
+    );
+    if (!doomed.length) throw new SenderError('No such policy entry.');
+    for (const row of doomed) ctx.db.auth_policy.id.delete(row.id);
   }
-});
+);
 
 /* ---------------------------------------------------------------- writing */
 

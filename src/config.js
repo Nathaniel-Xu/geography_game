@@ -34,7 +34,7 @@ export const SPACETIME = {
 
 export const OIDC = {
   authority: dev('authority', 'https://auth.spacetimedb.com/oidc'),
-  clientId: dev('clientId', ''),
+  clientId: dev('clientId', 'client_0345vYgbmktp44vCqOnjLz'),
   scope: 'openid profile email',
 };
 

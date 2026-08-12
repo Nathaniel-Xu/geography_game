@@ -16,8 +16,16 @@ const TOKENS = 'geoquiz.auth.v1';
 /** Per-tab, and deliberately not localStorage: a PKCE verifier is single-use. */
 const FLIGHT = 'geoquiz.auth.flight';
 
-/** Must be byte-identical in the authorize, token and logout calls. */
-const redirectUri = () => location.origin + location.pathname;
+/**
+ * Must be byte-identical in the authorize, token and logout calls, and must
+ * match a Redirect URI registered with the provider.
+ *
+ * `index.html` is dropped so that a visit to `/app/` and one to
+ * `/app/index.html` produce the same value — otherwise only whichever form was
+ * registered would work, and the other would fail at the provider with an
+ * opaque error.
+ */
+const redirectUri = () => location.origin + location.pathname.replace(/index\.html?$/i, '');
 
 const b64url = (bytes) =>
   btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');

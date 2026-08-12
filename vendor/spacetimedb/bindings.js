@@ -6403,7 +6403,8 @@ var allow_auth_reducer_default = {
 
 // server/module_bindings/deny_auth_reducer.ts
 var deny_auth_reducer_default = {
-  issuer: t.string()
+  issuer: t.string(),
+  audience: t.string()
 };
 
 // server/module_bindings/types.ts
