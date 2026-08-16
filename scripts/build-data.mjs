@@ -177,15 +177,25 @@ function ringsOf(geometry) {
 const countries = await fetchCached('ne_50m_admin_0_countries.geojson');
 const places = await fetchCached('ne_50m_populated_places.geojson');
 
+// Natural Earth marks secondary seats as "Admin-0 capital alt" - Kyoto for
+// Japan, Laayoune for Morocco, Baguio for the Philippines. They sort ahead of
+// the real entry, and this loop keeps the first hit, so a substring test here
+// silently swaps in the wrong city. Match the class exactly.
 const capitals = new Map();
 for (const f of places.features) {
   const p = f.properties;
-  if (!/Admin-0 capital/.test(p.FEATURECLA || '')) continue;
+  if (p.FEATURECLA !== 'Admin-0 capital') continue;
   const key = p.ADM0_A3 || p.SOV_A3;
   if (!key || capitals.has(key)) continue;
-  capitals.set(key, { name: p.NAME, ll: f.geometry.coordinates.map((v) => +v.toFixed(3)) });
+  // Natural Earth ships "Washington,  D.C." with a doubled space.
+  const name = p.NAME.replace(/\s+/g, ' ').trim();
+  capitals.set(key, { name, ll: f.geometry.coordinates.map((v) => +v.toFixed(3)) });
 }
-// Capitals Natural Earth files under a different admin code or omits entirely.
+
+// Capitals Natural Earth files under a different admin code, omits entirely,
+// or lists several with no way to rank them. The second group is a
+// judgement call about what a geography quiz should teach: the seat of
+// government where a country has one, otherwise the constitutional capital.
 const CAPITAL_FIX = {
   SDS: { name: 'Juba', ll: [31.58, 4.85] },
   PSX: { name: 'Ramallah', ll: [35.2, 31.9] },
@@ -197,6 +207,13 @@ const CAPITAL_FIX = {
   CHE: { name: 'Bern', ll: [7.45, 46.95] },
   NLD: { name: 'Amsterdam', ll: [4.9, 52.37] },
   BOL: { name: 'Sucre', ll: [-65.26, -19.05] },
+  // Four cities are filed as capitals of South Africa; Pretoria is the
+  // executive seat and the answer every atlas gives.
+  ZAF: { name: 'Pretoria', ll: [28.23, -25.71] },
+  // Official capitals that Natural Earth ranks behind the largest city.
+  TZA: { name: 'Dodoma', ll: [35.75, -6.183] },
+  BEN: { name: 'Porto-Novo', ll: [2.617, 6.483] },
+  LKA: { name: 'Sri Jayawardenepura Kotte', ll: [79.95, 6.9] },
 };
 
 const out = [];
