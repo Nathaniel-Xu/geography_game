@@ -58,6 +58,31 @@ let cloud = null;
 const idsForRegion = (region) =>
   countries.filter((c) => region === 'World' || c.region === region).map((c) => c.id);
 
+/**
+ * Speak a country name with the browser's own speech synthesiser: no
+ * dependency, no audio files, no network, and it already ships in every
+ * target browser. Offered while learning and exploring only - during a quiz
+ * it would read the answer out loud.
+ *
+ * Deliberately independent of the UI-sound mute: that silences incidental
+ * feedback chirps, whereas pressing a speaker button is an explicit request.
+ */
+const CAN_SPEAK =
+  typeof speechSynthesis !== 'undefined' && typeof SpeechSynthesisUtterance !== 'undefined';
+
+function say(text) {
+  if (!CAN_SPEAK || !text) return;
+  speechSynthesis.cancel(); // a second press interrupts the first, never queues
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'en-US'; // these are the English exonyms the quiz asks for
+  u.rate = 0.9; // unfamiliar words, so a touch slower than default
+  // getVoices() is empty until the browser has loaded them, and `lang` alone
+  // is enough in that case, so there is nothing to wait for.
+  const voice = speechSynthesis.getVoices().find((v) => v.lang?.startsWith('en'));
+  if (voice) u.voice = voice;
+  speechSynthesis.speak(u);
+}
+
 function toast(text, kind = '', ms = 1500) {
   const t = $('toast');
   t.textContent = text;
@@ -262,6 +287,10 @@ function showExplore() {
   $('prompt').hidden = false;
   $('promptKicker').textContent = 'Explore';
   $('promptName').textContent = 'Tap any country';
+  // Visible for the whole explore session, but inert until a country is picked
+  // - there is nothing to pronounce about "Tap any country".
+  $('sayPrompt').hidden = !CAN_SPEAK;
+  $('sayPrompt').disabled = true;
   $('promptSub').textContent = 'Wheel or pinch to zoom, drag to pan.';
   map.clearMarks();
   if (state.region !== 'World') {
@@ -379,6 +408,7 @@ function renderLearn() {
 
   $('learnCount').textContent = `${i + 1} / ${list.length}`;
   $('learnName').textContent = c.name;
+  $('sayLearn').hidden = !CAN_SPEAK;
   $('learnFacts').textContent =
     `${c.capital ? 'Capital ' + c.capital + ' · ' : ''}${c.subregion} · ` +
     `${c.area.toLocaleString()} km² · ${c.pop ? c.pop.toLocaleString() + ' people' : 'population n/a'}`;
@@ -464,6 +494,9 @@ function renderQuestion() {
   $('sbStreak').textContent = String(state.streak);
   map.clearMarks('target', 'correct', 'wrong', 'hint');
 
+  // No pronunciation during a quiz: in the "name it" modes it would read out
+  // the answer, and in the rest it just repeats the prompt.
+  $('sayPrompt').hidden = true;
   const kicker = state.set !== null ? `Set ${state.set}` : null;
   if (spec.kind === 'choice' || spec.kind === 'text') {
     // Both "name it" modes show the country and ask for its name; only the
@@ -794,6 +827,7 @@ function onPick(country, ll) {
     map.focus(country.id, { pad: 1.7, min: 40 });
     $('promptKicker').textContent = country.region;
     $('promptName').textContent = country.name;
+    $('sayPrompt').disabled = false;
     $('promptSub').textContent = `${country.capital ? 'Capital ' + country.capital + ' · ' : ''}${
       country.subregion
     } · ${country.area.toLocaleString()} km²`;
@@ -893,6 +927,11 @@ function bindChrome() {
   $('learnNext').addEventListener('click', () => stepLearn(1));
   $('learnQuiz').addEventListener('click', finishLearn);
 
+  // Read the name straight off the panel: both buttons are only reachable when
+  // the text beside them is a real country name.
+  $('sayLearn').addEventListener('click', () => say($('learnName').textContent));
+  $('sayPrompt').addEventListener('click', () => say($('promptName').textContent));
+
   $('answer').addEventListener('submit', (ev) => {
     ev.preventDefault();
     const q = state.quiz;
@@ -911,7 +950,11 @@ function bindChrome() {
       if (ev.key === '0') return map.reset();
     }
     if (!$('learnCard').hidden) {
-      if (ev.key === 'ArrowRight' || ev.key === 'Enter' || ev.key === ' ') {
+      // A focused button already turns Enter/Space into a click. Claiming them
+      // here as well would preventDefault the activation, so the pronounce
+      // button would go silent for anyone navigating by keyboard.
+      const onButton = document.activeElement?.tagName === 'BUTTON';
+      if (ev.key === 'ArrowRight' || (!onButton && (ev.key === 'Enter' || ev.key === ' '))) {
         ev.preventDefault();
         return stepLearn(1);
       }
