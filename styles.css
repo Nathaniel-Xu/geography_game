@@ -302,23 +302,52 @@ html, body {
 
 .panel-head { display: flex; align-items: baseline; gap: 12px; }
 .panel-head h2 { flex: 1; }
+/* The menu's close control: dismissing the menu *is* how you get to the map,
+   so this is the entry point to free-roam explore. */
+.panel-head .close {
+  align-self: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--ink-dim);
+}
+.panel-head .close:hover { color: var(--ink); }
 
-/* Account row on the menu */
+/* Account card, top right of the bar, and only on the home screen - see
+   renderAccount(). The bar is otherwise empty there, so it gets room to
+   breathe; the name still truncates rather than pushing the bar wider. */
 .account {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 10px 12px;
-  margin-bottom: 14px;
+  gap: 8px;
+  flex: none;
+  margin-left: auto;
+  padding: 5px 6px 5px 10px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 999px;
   background: var(--bg-soft);
 }
 .account.bad { border-color: var(--bad); }
-.account-text { flex: 1 1 200px; min-width: 0; }
-.account-text b { display: block; font-size: 14px; }
-.account-text .hint { margin: 2px 0 0; }
+.account-text { min-width: 0; max-width: 30ch; }
+.account-text b {
+  display: block;
+  font-size: 12px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.account-text .hint {
+  display: block;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .account-pic {
   width: 28px;
   height: 28px;

@@ -41,6 +41,17 @@
       <button id="btnLabels" class="btn ghost" hidden aria-pressed="false" data-cuelume-toggle data-cuelume-hover="tick">Labels</button>
       <button id="btnMenu" class="btn ghost" hidden data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Menu</button>
     </div>
+
+    <!-- Account (only shown when a backend is configured) -->
+    <div class="account" id="account" hidden>
+      <img id="accountPic" class="account-pic" alt="" hidden>
+      <div class="account-text">
+        <b id="accountName">Progress stays in this browser</b>
+        <span class="hint" id="accountStatus">Sign in to save it to your account.</span>
+      </div>
+      <button id="btnSignIn" class="btn tiny" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Sign in</button>
+      <button id="btnSignOut" class="btn tiny ghost" hidden data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Sign out</button>
+    </div>
   </header>
 
   <main class="stage">
@@ -92,19 +103,14 @@
 
     <!-- Setup / menu ------------------------------------------------------- -->
     <section id="panelMenu" class="panel">
-      <h2>Learn where every country is</h2>
+      <div class="panel-head">
+        <h2>Learn where every country is</h2>
+        <button id="btnExplore" class="btn round close" type="button"
+                title="Close — explore the map" aria-label="Close the menu and explore the map"
+                data-cuelume-press data-cuelume-release data-cuelume-hover="tick">&times;</button>
+      </div>
       <p class="lede">All <b>195</b> UN member and observer states, on a real map.</p>
 
-      <!-- Account (only shown when a backend is configured) -->
-      <div class="account" id="account" hidden>
-        <img id="accountPic" class="account-pic" alt="" hidden>
-        <div class="account-text">
-          <b id="accountName">Progress stays in this browser</b>
-          <span class="hint" id="accountStatus">Sign in to save it to your account.</span>
-        </div>
-        <button id="btnSignIn" class="btn tiny" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Sign in</button>
-        <button id="btnSignOut" class="btn tiny ghost" hidden data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Sign out</button>
-      </div>
 
       <div class="cta">
         <div class="cta-text">
@@ -136,7 +142,6 @@
 
         <div class="row">
           <button id="btnStart" class="btn primary" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Start drill</button>
-          <button id="btnExplore" class="btn" data-cuelume-press data-cuelume-release data-cuelume-hover="tick">Explore map</button>
         </div>
       </details>
 

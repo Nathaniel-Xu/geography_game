@@ -173,11 +173,11 @@ const SYNC_TEXT = {
  */
 function renderAccount() {
   const host = $('account');
-  if (!CLOUD_ENABLED) {
-    host.hidden = true;
-    return;
-  }
-  host.hidden = false;
+  // Home screen only. Everywhere else the bar belongs to the quiz controls,
+  // and this gate also stops an async status change from resurrecting the
+  // card mid-drill.
+  host.hidden = !CLOUD_ENABLED || $('panelMenu').hidden;
+  if (host.hidden) return;
 
   const who = account();
   const pic = $('accountPic');
@@ -256,7 +256,7 @@ function hideOverlays() {
   for (const id of ['choices', 'answer', 'learnCard', 'hover', 'panelMenu', 'panelCourse', 'panelResults']) {
     $(id).hidden = true;
   }
-  for (const id of ['prompt', 'scoreboard', 'btnSkip', 'btnQuit', 'btnSets', 'btnLabels', 'btnMenu']) {
+  for (const id of ['prompt', 'scoreboard', 'account', 'btnSkip', 'btnQuit', 'btnSets', 'btnLabels', 'btnMenu']) {
     $(id).hidden = true;
   }
 }
@@ -943,7 +943,12 @@ function bindChrome() {
   document.addEventListener('keydown', (ev) => {
     const q = state.quiz;
     const typing = ev.target instanceof HTMLInputElement && !ev.target.disabled;
-    if (ev.key === 'Escape') return state.set !== null ? showSets() : showMenu();
+    if (ev.key === 'Escape') {
+      // On the menu, Escape is the close button: dismissing it is how you get
+      // to the free-roam map. Everywhere else it still backs out to the menu.
+      if (!$('panelMenu').hidden) return showExplore();
+      return state.set !== null ? showSets() : showMenu();
+    }
     if (!typing) {
       if (ev.key === '+' || ev.key === '=') return map.zoomBy(1.6);
       if (ev.key === '-') return map.zoomBy(1 / 1.6);
