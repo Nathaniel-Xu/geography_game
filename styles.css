@@ -143,6 +143,15 @@ html, body {
   vector-effect: non-scaling-stroke;
   transition: fill 140ms;
 }
+/* Territories that are not quiz answers: present so the map has no holes,
+   dimmer than a real country, and never a click target. */
+.filler {
+  fill: #202b3d;
+  stroke: var(--land-edge);
+  stroke-width: 0.5px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
 .dot {
   fill: #4a5f80;
   stroke: var(--land-edge);

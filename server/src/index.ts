@@ -367,13 +367,14 @@ export const importProgress = spacetimedb.reducer(
       if (!incoming.country || incoming.seen === 0) continue;
       const row = statOf(ctx, ctx.sender, incoming.country);
       if (row) {
-        // `seen` is the yardstick for "further along"; keep the richer streak
-        // and the more recent timestamp regardless.
-        const ahead = incoming.seen > row.seen;
+        // Plain max on every field, matching `Stats.mergeCloud` exactly. Any
+        // conditional here (e.g. only taking `correct` when `seen` is
+        // strictly greater) stops the merge being a join, and two devices
+        // that reach equal `seen` with different `correct` never converge.
         ctx.db.country_stat.id.update({
           ...row,
           seen: Math.max(row.seen, incoming.seen),
-          correct: ahead ? Math.max(row.correct, incoming.correct) : row.correct,
+          correct: Math.max(row.correct, incoming.correct),
           streak: Math.max(row.streak, incoming.streak),
           last_ms: incoming.last_ms > row.last_ms ? incoming.last_ms : row.last_ms,
         });

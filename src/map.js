@@ -17,9 +17,10 @@ const el = (name, attrs) => {
   return node;
 };
 
-function pathOf(country) {
+/** One SVG path from a list of flat [lon,lat,lon,lat,...] rings. */
+function pathOfRings(rings) {
   let d = '';
-  for (const flat of country.polys) {
+  for (const flat of rings) {
     for (let i = 0; i < flat.length; i += 2) {
       const [x, y] = project(flat[i], flat[i + 1]);
       d += (i ? 'L' : 'M') + x.toFixed(2) + ' ' + y.toFixed(2);
@@ -38,8 +39,9 @@ export class WorldMap {
    * @param {HTMLElement} host
    * @param {Array} countries
    * @param {{onPick?: (country|null, ll:[number,number]) => void}} [handlers]
+   * @param {number[][]} [land] decorative rings that are not quiz answers
    */
-  constructor(host, countries, handlers = {}) {
+  constructor(host, countries, handlers = {}, land = []) {
     this.host = host;
     this.countries = countries;
     this.handlers = handlers;
@@ -59,8 +61,15 @@ export class WorldMap {
     const gDots = el('g', { class: 'dots' });
     const gLabels = el('g', { class: 'labels' });
 
-    for (const c of countries) {
-      const path = el('path', { class: 'country', d: pathOf(c), 'data-id': c.id });
+    // Dependencies, disputed territories and Antarctica: drawn so the map has
+    // no holes where Greenland or Taiwan belong, but inert - one path, no id,
+    // and `pointer-events: none` in CSS, so they can never take a click.
+    if (land.length) gLand.append(el('path', { class: 'filler', d: pathOfRings(land) }));
+
+    // Largest first, so an enclave is painted over its host instead of under
+    // it - otherwise South Africa buries Lesotho, and Italy the two microstates.
+    for (const c of [...countries].sort((a, b) => b.area - a.area)) {
+      const path = el('path', { class: 'country', d: pathOfRings(c.polys), 'data-id': c.id });
       gLand.append(path);
       const node = { path, dot: null, label: null };
       if (c.area <= DOT_MAX_AREA) {

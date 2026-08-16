@@ -264,6 +264,30 @@ for (const f of countries.features) {
 
 if (missing.size) throw new Error(`no geometry for: ${[...missing].join(' ')}`);
 
+/* ------------------------------------------------------------- backdrop */
+
+// Everything that is *not* a quiz answer: dependencies, disputed territories,
+// Antarctica. Without these the map has holes where Greenland, Taiwan and
+// Western Sahara belong, which reads as a rendering bug rather than as "not a
+// UN member". Geometry only - no name, no id, never clickable - and simplified
+// harder than the real countries because nothing is ever zoomed to it.
+const land = [];
+for (const f of countries.features) {
+  if (UN_STATES.includes(f.properties.ADM0_A3)) continue;
+  const rings = ringsOf(f.geometry)
+    .map((r) => ({ r, a: Math.abs(ringArea(r)) }))
+    .sort((x, y) => y.a - x.a);
+  for (const { r, a } of rings.filter((x, i) => i === 0 || x.a > 0.01).slice(0, 12)) {
+    const s = simplifyRing(r, 0.12);
+    const flat = new Array(s.length * 2);
+    for (let i = 0; i < s.length; i++) {
+      flat[i * 2] = +s[i][0].toFixed(2);
+      flat[i * 2 + 1] = +s[i][1].toFixed(2);
+    }
+    land.push(flat);
+  }
+}
+
 /* ------------------------------------------------------------ importance */
 
 // "Geopolitical importance" is a value judgement, so the recipe is kept dumb
@@ -323,6 +347,7 @@ const payload = {
   count: out.length,
   sets,
   countries: out,
+  land,
 };
 
 await mkdir(resolve(ROOT, 'data'), { recursive: true });
@@ -337,5 +362,6 @@ process.stderr.write(
     Object.entries(byRegion).sort((a, b) => b[1] - a[1]).map(([k, v]) => `  ${k}: ${v}`).join('\n') +
     `\n  no capital: ${out.filter((c) => !c.capital).map((c) => c.id).join(' ') || 'none'}\n` +
     `  ${sets.length} sets of ${SET_SIZE}\n` +
+    `  ${land.length} backdrop rings (dependencies, disputed, Antarctica)\n` +
     `  set 1: ${ranked.slice(0, SET_SIZE).map((c) => c.name).join(', ')}\n`
 );

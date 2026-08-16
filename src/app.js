@@ -968,7 +968,7 @@ async function boot() {
   countries = data.countries;
   byId = new Map(countries.map((c) => [c.id, c]));
   course = new Course(setsFrom(data), byId);
-  map = new WorldMap($('map'), countries, { onPick, onHover });
+  map = new WorldMap($('map'), countries, { onPick, onHover }, data.land || []);
   $('footInfo').textContent =
     `${data.count} countries · ${data.source} · keys: Enter answer/next, 1-4 choices, +/-/0 zoom, Esc back`;
   $('loading').hidden = true;

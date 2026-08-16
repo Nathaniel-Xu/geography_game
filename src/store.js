@@ -89,11 +89,15 @@ export class Stats {
         this.data[country] = { seen: r.seen, correct: r.correct, streak: r.streak, last: r.lastMs };
         continue;
       }
-      // Whichever side has answered more times owns the accuracy.
-      const cloudAhead = r.seen > local.seen;
+      // Every field is a plain max, which is what makes the merge a true
+      // join: order-independent, repeatable, and identical on both devices.
+      // Gating `correct` on "whichever side has seen more" looks fairer, but
+      // when two devices reach the same `seen` with a different `correct`
+      // neither side will ever adopt the other's - a permanent split.
+      // `correct <= seen` still holds, since `seen` is maxed too.
       this.data[country] = {
         seen: Math.max(local.seen, r.seen),
-        correct: cloudAhead ? Math.max(local.correct, r.correct) : local.correct,
+        correct: Math.max(local.correct, r.correct),
         streak: Math.max(local.streak, r.streak),
         last: Math.max(local.last, r.lastMs),
       };
