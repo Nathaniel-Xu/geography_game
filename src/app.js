@@ -46,7 +46,8 @@ const state = {
   muted: localStorage.getItem(MUTE_KEY) === '1',
 };
 
-let countries = [];
+let countries = []; // the 195 the quiz draws from
+let places = []; // everything drawn: countries plus territories
 let byId = new Map();
 let map = null;
 let course = null;
@@ -55,8 +56,17 @@ let cloud = null;
 
 /* --------------------------------------------------------------- utilities */
 
+/** Quiz pool for a region: the answerable countries, never territories. */
 const idsForRegion = (region) =>
   countries.filter((c) => region === 'World' || c.region === region).map((c) => c.id);
+
+/**
+ * Map scope for a region: everything drawn there, territories included, so
+ * browsing Europe does not grey out Kosovo. Only the question pool is limited
+ * to the 195 - what you can *see* is never narrower than what is there.
+ */
+const mapIdsForRegion = (region) =>
+  places.filter((c) => region === 'World' || c.region === region).map((c) => c.id);
 
 /**
  * Speak a country name with the browser's own speech synthesiser: no
@@ -129,9 +139,9 @@ function renderMenu() {
   segmented($('regionPick'), REGIONS.map((r) => ({ value: r, label: r })), state.region, (v) => {
     state.region = v;
     renderMenu();
-    map.restrictTo(v === 'World' ? null : new Set(idsForRegion(v)));
+    map.restrictTo(v === 'World' ? null : new Set(mapIdsForRegion(v)));
     if (v === 'World') map.reset();
-    else map.focusIds(idsForRegion(v));
+    else map.focusIds(mapIdsForRegion(v));
   });
 
   segmented($('lengthPick'), LENGTHS.map((l) => ({ value: l.n, label: l.label })), state.length, (v) => {
@@ -270,7 +280,7 @@ function showMenu() {
   $('panelMenu').hidden = false;
   document.body.classList.remove('playing', 'explore');
   map.clearMarks();
-  map.restrictTo(state.region === 'World' ? null : new Set(idsForRegion(state.region)));
+  map.restrictTo(state.region === 'World' ? null : new Set(mapIdsForRegion(state.region)));
   map.setLabels(false);
   state.labels = false;
   $('btnLabels').setAttribute('aria-pressed', 'false');
@@ -294,8 +304,8 @@ function showExplore() {
   $('promptSub').textContent = 'Wheel or pinch to zoom, drag to pan.';
   map.clearMarks();
   if (state.region !== 'World') {
-    map.restrictTo(new Set(idsForRegion(state.region)));
-    map.focusIds(idsForRegion(state.region));
+    map.restrictTo(new Set(mapIdsForRegion(state.region)));
+    map.focusIds(mapIdsForRegion(state.region));
   } else {
     map.restrictTo(null);
   }
@@ -465,10 +475,10 @@ function startQuiz({ ids = null, mode = state.mode, length } = {}) {
   map.setLabels(false);
   map.clearMarks();
   const scope = state.set !== null ? new Set(course.ids(state.set)) : null;
-  map.restrictTo(scope ?? (state.region === 'World' ? null : new Set(idsForRegion(state.region))));
+  map.restrictTo(scope ?? (state.region === 'World' ? null : new Set(mapIdsForRegion(state.region))));
   if (state.set !== null) map.focusIds(course.ids(state.set));
   else if (state.region === 'World') map.reset();
-  else map.focusIds(idsForRegion(state.region));
+  else map.focusIds(mapIdsForRegion(state.region));
   renderQuestion();
 }
 
@@ -670,7 +680,7 @@ function advance() {
     if (MODES[q.mode].kind === 'click') {
       if (state.set !== null) map.focusIds(course.ids(state.set));
       else if (state.region === 'World') map.reset();
-      else map.focusIds(idsForRegion(state.region));
+      else map.focusIds(mapIdsForRegion(state.region));
     }
     renderQuestion();
   }
@@ -821,14 +831,17 @@ function onPick(country, ll) {
   if (!q) {
     // Explore mode.
     if (!country) return;
-    play('whisper', { volume: 0.55 }); // subtle feedback for a dense 195-country map
+    play('whisper', { volume: 0.55 }); // subtle feedback for a dense map
     map.clearMarks('target');
     map.mark(country.id, 'target');
     map.focus(country.id, { pad: 1.7, min: 40 });
     $('promptKicker').textContent = country.region;
     $('promptName').textContent = country.name;
     $('sayPrompt').disabled = false;
-    $('promptSub').textContent = `${country.capital ? 'Capital ' + country.capital + ' · ' : ''}${
+    const lead = country.capital
+      ? `Capital ${country.capital}`
+      : country.sovereign && `${country.sovereign} territory`;
+    $('promptSub').textContent = `${lead ? lead + ' · ' : ''}${
       country.subregion
     } · ${country.area.toLocaleString()} km²`;
     return;
@@ -848,6 +861,13 @@ function onPick(country, ll) {
   judge(q.answerClick(country, ll), ll);
 }
 
+/**
+ * What to show under a name: a country has a capital, a territory has a
+ * sovereign ("Greenland · Denmark"), and one that claims itself - Kosovo,
+ * Taiwan, Somaliland - falls back to its subregion.
+ */
+const subtitleOf = (c) => c.capital || c.sovereign || c.subregion;
+
 function onHover(country) {
   const chip = $('hover');
   if (!country || state.quiz) {
@@ -855,7 +875,7 @@ function onHover(country) {
     return;
   }
   chip.hidden = false;
-  chip.innerHTML = `<b>${country.name}</b><span>${country.capital ?? '—'} · ${country.region}</span>`;
+  chip.innerHTML = `<b>${country.name}</b><span>${subtitleOf(country)} · ${country.region}</span>`;
 }
 
 function bindChrome() {
@@ -884,7 +904,7 @@ function bindChrome() {
         ? new Set(course.ids(state.set))
         : state.region === 'World'
           ? null
-          : new Set(idsForRegion(state.region));
+          : new Set(mapIdsForRegion(state.region));
     map.setLabels(state.labels, scope);
   });
   $('zoomIn').addEventListener('click', () => map.zoomBy(1.6));
@@ -1013,10 +1033,13 @@ async function boot() {
   if (!Array.isArray(data.countries) || !data.countries.length) {
     throw new Error('countries.json has no countries');
   }
+  // `countries` stays the 195 the quiz draws from; `places` adds the
+  // territories, and `byId` resolves both so hover and explore can name them.
   countries = data.countries;
-  byId = new Map(countries.map((c) => [c.id, c]));
+  places = countries.concat(data.territories || []);
+  byId = new Map(places.map((c) => [c.id, c]));
   course = new Course(setsFrom(data), byId);
-  map = new WorldMap($('map'), countries, { onPick, onHover }, data.land || []);
+  map = new WorldMap($('map'), places, { onPick, onHover });
   $('footInfo').textContent =
     `${data.count} countries · ${data.source} · keys: Enter answer/next, 1-4 choices, +/-/0 zoom, Esc back`;
   $('loading').hidden = true;

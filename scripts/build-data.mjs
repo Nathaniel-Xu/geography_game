@@ -216,28 +216,23 @@ const CAPITAL_FIX = {
   LKA: { name: 'Sri Jayawardenepura Kotte', ll: [79.95, 6.9] },
 };
 
-const out = [];
-const missing = new Set(UN_STATES);
-
-for (const f of countries.features) {
-  const p = f.properties;
-  const a3 = p.ADM0_A3;
-  if (!missing.has(a3)) continue;
-  missing.delete(a3);
-
-  const ov = OVERRIDES[a3] || {};
-  const id = ov.id || a3;
-  const rings = ringsOf(f.geometry)
+/**
+ * Simplified rings, bounding box, area-weighted centroid and total km², for
+ * anything with a geometry. Countries and territories are drawn, hit-tested
+ * and zoomed identically, so they are built by the same code at the same
+ * fidelity - only the question pool tells them apart.
+ */
+function shapeOf(geometry) {
+  const rings = ringsOf(geometry)
     .map((r) => ({ r, a: Math.abs(ringArea(r)), km2: ringAreaKm2(r) }))
     .sort((x, y) => y.a - x.a);
 
-  const totalKm2 = rings.reduce((s, x) => s + x.km2, 0);
   // Keep every island big enough to see, and always the largest ring; the cap
   // stops Kiribati's 30 atolls from outweighing all of Europe in file size.
   const kept = rings.filter((x, i) => i === 0 || x.a > 0.004).slice(0, 40);
 
   const polys = [];
-  let bbox = [180, 90, -180, -90];
+  const bbox = [180, 90, -180, -90];
   let cx = 0, cy = 0, cw = 0;
   for (const { r, a } of kept) {
     const s = simplifyRing(r, 0.06);
@@ -258,51 +253,74 @@ for (const f of countries.features) {
     cx += (sx / s.length) * w; cy += (sy / s.length) * w; cw += w;
   }
 
+  return {
+    polys,
+    bbox,
+    centroid: [+(cx / cw).toFixed(2), +(cy / cw).toFixed(2)],
+    km2: Math.round(rings.reduce((s, x) => s + x.km2, 0)),
+  };
+}
+
+const out = [];
+const missing = new Set(UN_STATES);
+
+for (const f of countries.features) {
+  const p = f.properties;
+  const a3 = p.ADM0_A3;
+  if (!missing.has(a3)) continue;
+  missing.delete(a3);
+
+  const ov = OVERRIDES[a3] || {};
+  const shape = shapeOf(f.geometry);
   const cap = CAPITAL_FIX[a3] || capitals.get(a3) || null;
-  // Label/marker anchor: the capital when we have one (always inside the
-  // country), else the area-weighted mean of ring centroids.
-  const center = cap ? cap.ll : [+(cx / cw).toFixed(2), +(cy / cw).toFixed(2)];
 
   out.push({
-    id,
+    id: ov.id || a3,
     name: ov.name || p.NAME,
     region: REGION_FIX[a3] || REGION[p.CONTINENT] || p.CONTINENT,
     subregion: p.SUBREGION,
     capital: cap ? cap.name : null,
     capitalLL: cap ? cap.ll : null,
-    area: Math.round(totalKm2),
+    area: shape.km2,
     pop: p.POP_EST || null,
     gdp: p.GDP_MD > 0 ? p.GDP_MD : null, // millions USD; NE uses -99 for no data (Vatican)
-    bbox,
-    center,
-    polys,
+    bbox: shape.bbox,
+    // Label/marker anchor: the capital when we have one (always inside the
+    // country), else the area-weighted mean of ring centroids.
+    center: cap ? cap.ll : shape.centroid,
+    polys: shape.polys,
   });
 }
 
 if (missing.size) throw new Error(`no geometry for: ${[...missing].join(' ')}`);
 
-/* ------------------------------------------------------------- backdrop */
+/* ----------------------------------------------------------- territories */
 
-// Everything that is *not* a quiz answer: dependencies, disputed territories,
-// Antarctica. Without these the map has holes where Greenland, Taiwan and
-// Western Sahara belong, which reads as a rendering bug rather than as "not a
-// UN member". Geometry only - no name, no id, never clickable - and simplified
-// harder than the real countries because nothing is ever zoomed to it.
-const land = [];
+// Everything on the map that is not a UN member or observer: dependencies,
+// autonomous territories, disputed and unrecognised states, Antarctica. They
+// are drawn, named, hoverable and clickable exactly like a country. The only
+// difference is that the quiz never asks for them, which `sets` encodes.
+const territories = [];
 for (const f of countries.features) {
-  if (UN_STATES.includes(f.properties.ADM0_A3)) continue;
-  const rings = ringsOf(f.geometry)
-    .map((r) => ({ r, a: Math.abs(ringArea(r)) }))
-    .sort((x, y) => y.a - x.a);
-  for (const { r, a } of rings.filter((x, i) => i === 0 || x.a > 0.01).slice(0, 12)) {
-    const s = simplifyRing(r, 0.12);
-    const flat = new Array(s.length * 2);
-    for (let i = 0; i < s.length; i++) {
-      flat[i * 2] = +s[i][0].toFixed(2);
-      flat[i * 2 + 1] = +s[i][1].toFixed(2);
-    }
-    land.push(flat);
-  }
+  const p = f.properties;
+  if (UN_STATES.includes(p.ADM0_A3)) continue;
+  const shape = shapeOf(f.geometry);
+
+  territories.push({
+    id: p.ADM0_A3,
+    name: p.NAME,
+    // Null where the place claims itself: Taiwan, Kosovo, Somaliland, N.
+    // Cyprus, Antarctica. The UI falls back to the region for those.
+    sovereign: p.SOVEREIGNT === p.NAME ? null : p.SOVEREIGNT,
+    region: REGION[p.CONTINENT] || p.CONTINENT,
+    subregion: p.SUBREGION,
+    capital: null,
+    area: shape.km2,
+    pop: p.POP_EST || null,
+    bbox: shape.bbox,
+    center: shape.centroid,
+    polys: shape.polys,
+  });
 }
 
 /* ------------------------------------------------------------ importance */
@@ -357,6 +375,7 @@ for (let i = 0; i < ranked.length; i += SET_SIZE) {
 }
 
 out.sort((a, b) => a.name.localeCompare(b.name));
+territories.sort((a, b) => a.name.localeCompare(b.name));
 
 const payload = {
   generated: new Date().toISOString().slice(0, 10),
@@ -364,7 +383,7 @@ const payload = {
   count: out.length,
   sets,
   countries: out,
-  land,
+  territories,
 };
 
 await mkdir(resolve(ROOT, 'data'), { recursive: true });
@@ -379,6 +398,6 @@ process.stderr.write(
     Object.entries(byRegion).sort((a, b) => b[1] - a[1]).map(([k, v]) => `  ${k}: ${v}`).join('\n') +
     `\n  no capital: ${out.filter((c) => !c.capital).map((c) => c.id).join(' ') || 'none'}\n` +
     `  ${sets.length} sets of ${SET_SIZE}\n` +
-    `  ${land.length} backdrop rings (dependencies, disputed, Antarctica)\n` +
+    `  ${territories.length} territories, not asked about\n` +
     `  set 1: ${ranked.slice(0, SET_SIZE).map((c) => c.name).join(', ')}\n`
 );

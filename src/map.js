@@ -37,11 +37,10 @@ function pathOfRings(rings) {
 export class WorldMap {
   /**
    * @param {HTMLElement} host
-   * @param {Array} countries
+   * @param {Array} countries every drawn place, quiz answer or not
    * @param {{onPick?: (country|null, ll:[number,number]) => void}} [handlers]
-   * @param {number[][]} [land] decorative rings that are not quiz answers
    */
-  constructor(host, countries, handlers = {}, land = []) {
+  constructor(host, countries, handlers = {}) {
     this.host = host;
     this.countries = countries;
     this.handlers = handlers;
@@ -61,10 +60,6 @@ export class WorldMap {
     const gDots = el('g', { class: 'dots' });
     const gLabels = el('g', { class: 'labels' });
 
-    // Dependencies, disputed territories and Antarctica: drawn so the map has
-    // no holes where Greenland or Taiwan belong, but inert - one path, no id,
-    // and `pointer-events: none` in CSS, so they can never take a click.
-    if (land.length) gLand.append(el('path', { class: 'filler', d: pathOfRings(land) }));
 
     // Largest first, so an enclave is painted over its host instead of under
     // it - otherwise South Africa buries Lesotho, and Italy the two microstates.
